@@ -226,6 +226,30 @@ figcaption {
   }
 }
 
+/* film strip of dolly zoom stills */
+
+.film-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+}
+
+.film-strip figure {
+  margin: 0;
+}
+
+.film-strip figcaption {
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 480px) {
+  .film-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* placeholder writeup blocks — delete once real content is in */
 
 .todo {

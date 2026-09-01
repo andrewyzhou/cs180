@@ -18,19 +18,22 @@ oklch grayscale theme system).
 All asset links are relative so the site works locally, on a bare deployment
 domain, and proxied under `andrewzhou.org/cs180/`.
 
-## Project 0 — media slots
+## Project 0 — media
 
 | file | content |
 |---|---|
-| `proj0/media/selfie-close.jpg` | portrait from close up (distorted) |
-| `proj0/media/selfie-zoomed.jpg` | portrait from several feet back, zoomed in |
-| `proj0/media/arch-zoomed.jpg` | building from across a field, zoomed in |
-| `proj0/media/arch-close.jpg` | building up close, no zoom |
-| `proj0/media/dolly-zoom.gif` | animated dolly zoom (4–8+ stills) |
+| `proj0/media/carolyn-close.jpg` | portrait close up, iPhone main lens (24mm equiv) |
+| `proj0/media/carolyn-zoomed.jpg` | portrait stepped back, iPhone tele (77mm equiv) |
+| `proj0/media/building-zoomed.jpg` | building from afar, 2x zoom (48mm equiv) |
+| `proj0/media/building-close.jpg` | building up close, no zoom (24mm equiv) |
+| `proj0/media/dolly/frame-0[1-9].jpg` | dolly zoom stills, 14→72mm equiv (iPhone 14 Pro + Canon M50 II) |
+| `proj0/media/dolly-zoom.gif` | boomerang dolly zoom, 1440x1080 @ 3fps |
 
-Current files are labeled placeholders. Drop raw photos (HEIC fine) in
-`incoming/` and they get converted/resized/renamed into the slots above; dolly
-zoom stills get assembled into the GIF with ffmpeg.
+All images are full resolution, uncropped. HEIC originals were converted to
+JPEG at maximum quality (`sips` `formatOptions best`); Canon JPGs are untouched
+copies. GPS EXIF was removed losslessly from all iPhone shots before publishing
+(`piexif`, GPS IFD only — orientation and the rest kept). Source originals live
+in `incoming/` (gitignored).
 
 ## Submission checklist (proj0, due Sep 1 11:59pm)
 

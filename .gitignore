@@ -1,0 +1,7 @@
+.DS_Store
+
+# downloaded course specs — local reference only, not published
+specs/
+
+# raw photo drop zone — originals get processed into proj*/media/, not committed
+incoming/

@@ -1,0 +1,268 @@
+/* cs180 portfolio — shared stylesheet
+   mirrors the design tokens of andrewzhou.org (personal-site globals.css):
+   funnel sans, oklch grayscale theme system, dark default with light toggle.
+   keep the :root/.theme-light blocks in sync with the main site. */
+
+:root {
+  --ui-highlight-radius: 4px;
+  --ui-image-radius: 6px;
+
+  /* semantic colors — dark mode defaults */
+  --theme-bg: oklch(17.3% 0 0);
+  --theme-text: oklch(84.5% 0 0);
+  --theme-text-primary: oklch(94.9% 0 0);
+  --theme-text-muted: oklch(73.8% 0 0);
+  --theme-divider: oklch(30.9% 0 0);
+  --theme-highlight-bg: oklch(94.9% 0 0 / 0.08);
+  --theme-highlight-bg-hover: oklch(94.9% 0 0 / 0.15);
+  --theme-highlight-bg-active: oklch(94.9% 0 0 / 0.18);
+  --theme-card-bg: oklch(94.9% 0 0 / 0.1);
+}
+
+.theme-light {
+  --theme-bg: oklch(94.9% 0 0);
+  --theme-text: oklch(32.1% 0 0);
+  --theme-text-primary: oklch(17.3% 0 0);
+  --theme-text-muted: oklch(45.0% 0 0);
+  --theme-divider: oklch(85.5% 0 0);
+  --theme-highlight-bg: oklch(17.3% 0 0 / 0.08);
+  --theme-highlight-bg-hover: oklch(17.3% 0 0 / 0.15);
+  --theme-highlight-bg-active: oklch(17.3% 0 0 / 0.18);
+  --theme-card-bg: oklch(17.3% 0 0 / 0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Funnel Sans", ui-sans-serif, system-ui, sans-serif;
+  font-optical-sizing: auto;
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* layout */
+
+.site-container {
+  max-width: 1348px;
+  margin: 0 auto;
+  padding: 48px 20px;
+}
+
+@media (min-width: 768px) {
+  .site-container {
+    padding: 64px 64px;
+  }
+}
+
+article {
+  max-width: 720px;
+  padding: 2rem 0;
+}
+
+/* typography */
+
+h1 {
+  color: var(--theme-text-primary);
+  font-weight: 700;
+  font-size: 2.25rem;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin-bottom: 0.5rem;
+}
+
+h2 {
+  color: var(--theme-text-primary);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 3rem 0 0.5rem 0;
+}
+
+p {
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.meta {
+  color: var(--theme-text-muted);
+  font-size: 1.125rem;
+  margin-bottom: 1.5rem;
+}
+
+.summary {
+  color: var(--theme-text-primary);
+  font-size: 1.125rem;
+  font-style: italic;
+  line-height: 1.5;
+  margin-bottom: 2rem;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.link-highlight {
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  background-color: var(--theme-highlight-bg);
+  padding: 0px 2px 0.5px 2px;
+  margin-left: 1px;
+  margin-right: 1px;
+  border-radius: var(--ui-highlight-radius);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.link-highlight:hover {
+  color: var(--theme-text-primary);
+  background-color: var(--theme-highlight-bg-hover);
+}
+
+.back-link {
+  display: inline-block;
+  color: var(--theme-text-muted);
+  margin-bottom: 2rem;
+}
+
+hr,
+.section-divider {
+  border: none;
+  height: 1px;
+  background-color: var(--theme-divider);
+  margin: 2rem 0;
+}
+
+/* header row with theme toggle */
+
+.top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.theme-toggle {
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--theme-text-muted);
+  background: none;
+  border: none;
+}
+
+/* project list (landing page) */
+
+.project-list {
+  list-style: none;
+  max-width: 720px;
+}
+
+.project-list li {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--theme-divider);
+}
+
+.project-list .project-title {
+  color: var(--theme-text-primary);
+  font-size: 1.125rem;
+}
+
+.project-list .project-sub {
+  color: var(--theme-text-muted);
+  font-size: 0.875rem;
+  margin: 0.25rem 0 0 0;
+}
+
+.project-list li.upcoming .project-title {
+  color: var(--theme-text-muted);
+}
+
+/* figures */
+
+figure {
+  margin: 1.5rem 0;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--ui-image-radius);
+}
+
+figcaption {
+  color: var(--theme-text-muted);
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* side-by-side comparison pair; stacks on small screens */
+
+.figure-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.figure-pair figure {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .figure-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* placeholder writeup blocks — delete once real content is in */
+
+.todo {
+  color: var(--theme-text-muted);
+  border: 1px dashed var(--theme-divider);
+  border-radius: var(--ui-image-radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+footer {
+  padding: 2rem 0;
+  text-align: center;
+  color: var(--theme-text-muted);
+  font-size: 0.875rem;
+}
+
+/* print (gradescope pdf): force light theme, hide chrome, keep figures whole */
+
+@media print {
+  :root {
+    --theme-bg: oklch(100% 0 0);
+    --theme-text: oklch(32.1% 0 0);
+    --theme-text-primary: oklch(17.3% 0 0);
+    --theme-text-muted: oklch(45% 0 0);
+    --theme-divider: oklch(85.5% 0 0);
+    --theme-highlight-bg: transparent;
+  }
+
+  .theme-toggle,
+  .back-link {
+    display: none;
+  }
+
+  figure,
+  .figure-pair {
+    break-inside: avoid;
+  }
+}

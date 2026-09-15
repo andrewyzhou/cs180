@@ -5,3 +5,10 @@ specs/
 
 # raw photo drop zone — originals get processed into proj*/media/, not committed
 incoming/
+
+# python virtualenv — recreate with: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/
+
+# proj1 course input plates (~760MB of tifs) and generated outputs
+proj1/images/
+proj1/out/

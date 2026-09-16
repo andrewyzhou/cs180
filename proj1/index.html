@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>project 1 · cs180 · andrew zhou</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/cs180/css/style.css">
+  <script src="/cs180/js/theme.js"></script>
+</head>
+<body>
+  <main class="site-container">
+    <div class="top-row">
+      <a href="/cs180" class="back-link link-highlight">← cs180</a>
+      <button class="theme-toggle link-highlight" onclick="toggleTheme()">light mode</button>
+    </div>
+
+    <article>
+      <h1>colorizing the prokudin-gorskii photo collection</h1>
+      <p class="meta">project 1 · sep 15, 2026</p>
+
+      <hr>
+
+      <p class="summary">
+        turning three black and white exposures of the same scene, taken through
+        red, green, and blue filters, into one color photo by lining them up.
+      </p>
+
+      <h2>the data</h2>
+      <p>
+        sergei prokudin-gorskii photographed the russian empire in color starting
+        in 1907 by taking three exposures of every scene on one glass plate, each
+        through a different color filter. the library of congress scanned the
+        plates and put them online. each scan is a tall image with the blue
+        exposure on top, then green, then red.
+      </p>
+      <figure>
+        <img src="/cs180/proj1/media/cathedral-plate.jpg" alt="scanned glass plate with the blue, green, and red exposures stacked vertically">
+        <figcaption>cathedral.jpg as scanned · blue on top, then green, then red</figcaption>
+      </figure>
+      <p>
+        the first step is to cut the plate into three equal parts. i read the
+        image, convert it to floats in [0, 1] so jpgs and 16-bit tifs behave the
+        same, and slice by thirds along the height.
+      </p>
+<pre><code>img = sk.img_as_float(skio.imread(path))
+
+height = img.shape[0] // 3
+b = img[:height]
+g = img[height:2 * height]
+r = img[2 * height:3 * height]</code></pre>
+      <p>
+        if you just stack the three parts as is you get a color image, but the
+        three exposures were not taken from exactly the same spot on the plate,
+        so nothing lines up.
+      </p>
+      <div class="figure-pair">
+        <figure>
+          <img src="/cs180/proj1/media/cathedral-unaligned.jpg" alt="cathedral with channels stacked but not aligned, showing color fringes">
+          <figcaption>stacked with no alignment</figcaption>
+        </figure>
+        <figure>
+          <img src="/cs180/proj1/media/single/cathedral.jpg" alt="cathedral with channels aligned">
+          <figcaption>aligned · g (5, 2) · r (12, 3)</figcaption>
+        </figure>
+      </div>
+
+      <h2>part 1 · single-scale alignment</h2>
+      <p>
+        i keep the blue channel fixed and move the green and red channels to
+        match it. the model is a plain x, y translation. to find the right one
+        i try every shift in a window of [-15, 15] pixels in both directions,
+        score how well the shifted channel matches blue, and keep the best.
+      </p>
+      <p>
+        the score needs some way to say how similar two images are. i tried two.
+        the first is the l2 norm, which is just the sum of squared differences
+        between the two images. smaller is better.
+      </p>
+<pre><code>def l2(a, b):
+    return float(np.sum((a - b) ** 2))</code></pre>
+      <p>
+        the second is normalized cross-correlation. you subtract the mean from
+        each image, divide each by its norm, and take the dot product. this
+        ignores overall brightness and contrast differences and only looks at
+        whether the two images go up and down in the same places. a perfect
+        match gives 1, so i negate it to keep smaller is better like l2.
+      </p>
+<pre><code>def ncc(a, b):
+    a = a - a.mean()
+    b = b - b.mean()
+    return float(-np.sum(a * b) / (np.linalg.norm(a) * np.linalg.norm(b)))</code></pre>
+      <p>
+        one thing that matters a lot is ignoring the borders. the scans have
+        black and white bars around the edges, and those bars are in different
+        places on each channel. if you score the whole image the bars dominate
+        and the search locks onto them instead of the picture. so before
+        scoring i crop 10% off every side of both images.
+      </p>
+<pre><code>def crop(img, frac=0.1):
+    h, w = img.shape
+    dh, dw = int(h * frac), int(w * frac)
+    return img[dh:h - dh, dw:w - dw]</code></pre>
+      <p>
+        the search is two nested loops over the window. for each shift i roll
+        the moving channel with <code>np.roll</code>, crop both, and score.
+        the crop only happens for scoring. the final image uses the full
+        channel rolled by whatever shift wins.
+      </p>
+<pre><code>def search(moving, fixed, metric, center=(0, 0), radius=15):
+    fixed = crop(fixed)
+    best_shift, best_score = center, np.inf
+    for dy in range(center[0] - radius, center[0] + radius + 1):
+        for dx in range(center[1] - radius, center[1] + radius + 1):
+            score = metric(crop(np.roll(moving, (dy, dx), axis=(0, 1))), fixed)
+            if score &lt; best_score:
+                best_shift, best_score = (dy, dx), score
+    return best_shift</code></pre>
+      <p>
+        here are the three small jpgs aligned this way. the offsets are
+        (dy, dx) in pixels. l2 and ncc pick the exact same shifts on all three.
+      </p>
+      <div class="film-strip">
+        <figure><img src="/cs180/proj1/media/single/cathedral.jpg" alt="cathedral aligned with single-scale search"><figcaption>cathedral · g (5, 2) · r (12, 3)</figcaption></figure>
+        <figure><img src="/cs180/proj1/media/single/monastery.jpg" alt="monastery aligned with single-scale search"><figcaption>monastery · g (-3, 2) · r (3, 2)</figcaption></figure>
+        <figure><img src="/cs180/proj1/media/single/tobolsk.jpg" alt="tobolsk aligned with single-scale search"><figcaption>tobolsk · g (3, 3) · r (6, 3)</figcaption></figure>
+      </div>
+
+      <h2>part 2 · image pyramid</h2>
+      <p>
+        the full size tifs are about 3200 by 3700 pixels per channel, roughly
+        ten times bigger than the jpgs in each direction. that breaks the
+        single-scale search in two ways. the real shifts are now up to 178
+        pixels, so a [-15, 15] window can't even reach them. and scoring one
+        shift at that size takes about 20ms, so a wide enough window would take
+        many minutes per image.
+      </p>
+      <p>
+        the fix is to align at a small scale first and then refine. i build an
+        image pyramid by repeatedly halving the image. before dropping every
+        other pixel i blur with a gaussian so the small image doesn't alias.
+        i keep halving until the next level would be under 200 pixels on its
+        short side, which gives 5 levels for the tifs and 2 for the jpgs.
+      </p>
+<pre><code>def downsample(img):
+    return gaussian(img, sigma=1)[::2, ::2]
+
+def build_pyramid(img, min_size=200):
+    levels = [img]
+    while min(levels[-1].shape) // 2 &gt;= min_size:
+        levels.append(downsample(levels[-1]))
+    return levels</code></pre>
+      <p>
+        then i run the same search from part 1 at the coarsest level with the
+        full [-15, 15] window. at that scale 15 pixels is 240 pixels at full
+        resolution, so everything is in reach. the answer i get is only good
+        to about a pixel at that scale. moving one level finer, every pixel
+        becomes two, so i double the shift and search a small window of
+        [-3, 3] around it to fix the rounding. i repeat that down to full
+        resolution.
+      </p>
+<pre><code>def align_pyramid(moving, fixed, metric, radius=15, refine_radius=3):
+    moving_pyr = build_pyramid(moving)
+    fixed_pyr = build_pyramid(fixed)
+
+    shift = search(moving_pyr[-1], fixed_pyr[-1], metric, radius=radius)
+    for mov, fix in zip(moving_pyr[-2::-1], fixed_pyr[-2::-1]):
+        shift = (2 * shift[0], 2 * shift[1])
+        shift = search(mov, fix, metric, center=shift, radius=refine_radius)
+    return shift</code></pre>
+      <p>
+        the small refine window is what makes this fast. the expensive level is
+        the full resolution one, and there i only score 49 shifts instead of
+        961. each tif takes about 4 seconds with ncc and the whole set of 17
+        runs in about a minute.
+      </p>
+
+      <h2>results</h2>
+      <p>
+        all 14 provided images plus 3 i picked from the collection, aligned
+        with the pyramid and ncc. click any for full resolution.
+      </p>
+      <div class="result-grid">
+        <figure><a href="/cs180/proj1/media/full/cathedral.jpg"><img src="/cs180/proj1/media/thumb/cathedral.jpg" alt="cathedral aligned with pyramid and ncc"></a><figcaption>cathedral · g ((5, 2) · r ((12, 3)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/monastery.jpg"><img src="/cs180/proj1/media/thumb/monastery.jpg" alt="monastery aligned with pyramid and ncc"></a><figcaption>monastery · g ((-3, 2) · r ((3, 2)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/tobolsk.jpg"><img src="/cs180/proj1/media/thumb/tobolsk.jpg" alt="tobolsk aligned with pyramid and ncc"></a><figcaption>tobolsk · g ((3, 3) · r ((6, 3)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/church.jpg"><img src="/cs180/proj1/media/thumb/church.jpg" alt="church aligned with pyramid and ncc"></a><figcaption>church · g ((25, 4) · r ((58, -4)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/emir.jpg"><img src="/cs180/proj1/media/thumb/emir.jpg" alt="emir aligned with pyramid and ncc"></a><figcaption>emir · g ((49, 24) · r ((141, -205)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/harvesters.jpg"><img src="/cs180/proj1/media/thumb/harvesters.jpg" alt="harvesters aligned with pyramid and ncc"></a><figcaption>harvesters · g ((60, 17) · r ((124, 13)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/icon.jpg"><img src="/cs180/proj1/media/thumb/icon.jpg" alt="icon aligned with pyramid and ncc"></a><figcaption>icon · g ((41, 17) · r ((89, 23)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/ilemselga.jpg"><img src="/cs180/proj1/media/thumb/ilemselga.jpg" alt="ilemselga aligned with pyramid and ncc"></a><figcaption>ilemselga · g ((40, 7) · r ((130, 11)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/italii.jpg"><img src="/cs180/proj1/media/thumb/italii.jpg" alt="italii aligned with pyramid and ncc"></a><figcaption>italii · g ((38, 21) · r ((76, 35)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/lugano.jpg"><img src="/cs180/proj1/media/thumb/lugano.jpg" alt="lugano aligned with pyramid and ncc"></a><figcaption>lugano · g ((37, 13) · r ((86, 38)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/melons.jpg"><img src="/cs180/proj1/media/thumb/melons.jpg" alt="melons aligned with pyramid and ncc"></a><figcaption>melons · g ((82, 11) · r ((178, 13)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/napoleon.jpg"><img src="/cs180/proj1/media/thumb/napoleon.jpg" alt="napoleon aligned with pyramid and ncc"></a><figcaption>napoleon · g ((63, 5) · r ((133, -2)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/religous_painting.jpg"><img src="/cs180/proj1/media/thumb/religous_painting.jpg" alt="religous painting aligned with pyramid and ncc"></a><figcaption>religous painting · g ((28, 3) · r ((68, 7)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/self_portrait.jpg"><img src="/cs180/proj1/media/thumb/self_portrait.jpg" alt="self portrait aligned with pyramid and ncc"></a><figcaption>self portrait · g ((79, 29) · r ((176, 37)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/siren.jpg"><img src="/cs180/proj1/media/thumb/siren.jpg" alt="siren aligned with pyramid and ncc"></a><figcaption>siren · g ((49, -6) · r ((96, -25)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/three_generations.jpg"><img src="/cs180/proj1/media/thumb/three_generations.jpg" alt="three generations aligned with pyramid and ncc"></a><figcaption>three generations · g ((53, 14) · r ((112, 11)</figcaption></figure>
+        <figure><a href="/cs180/proj1/media/full/wharf.jpg"><img src="/cs180/proj1/media/thumb/wharf.jpg" alt="wharf aligned with pyramid and ncc"></a><figcaption>wharf · g ((15, -7) · r ((83, -16)</figcaption></figure>
+      </div>
+      <p>the offsets and time per image:</p>
+      <table>
+        <thead><tr><th>image</th><th class="num">g (dy, dx)</th><th class="num">r (dy, dx)</th><th class="num">time</th></tr></thead>
+        <tbody>
+          <tr><td>cathedral</td><td class="num">((5, 2)</td><td class="num">((12, 3)</td><td class="num">0.4s</td></tr>
+          <tr><td>monastery</td><td class="num">((-3, 2)</td><td class="num">((3, 2)</td><td class="num">0.4s</td></tr>
+          <tr><td>tobolsk</td><td class="num">((3, 3)</td><td class="num">((6, 3)</td><td class="num">0.4s</td></tr>
+          <tr><td>church</td><td class="num">((25, 4)</td><td class="num">((58, -4)</td><td class="num">3.8s</td></tr>
+          <tr><td>emir</td><td class="num">((49, 24)</td><td class="num">((141, -205)</td><td class="num">4.1s</td></tr>
+          <tr><td>harvesters</td><td class="num">((60, 17)</td><td class="num">((124, 13)</td><td class="num">3.8s</td></tr>
+          <tr><td>icon</td><td class="num">((41, 17)</td><td class="num">((89, 23)</td><td class="num">4.8s</td></tr>
+          <tr><td>ilemselga</td><td class="num">((40, 7)</td><td class="num">((130, 11)</td><td class="num">4.6s</td></tr>
+          <tr><td>italii</td><td class="num">((38, 21)</td><td class="num">((76, 35)</td><td class="num">3.9s</td></tr>
+          <tr><td>lugano</td><td class="num">((37, 13)</td><td class="num">((86, 38)</td><td class="num">4.2s</td></tr>
+          <tr><td>melons</td><td class="num">((82, 11)</td><td class="num">((178, 13)</td><td class="num">4.0s</td></tr>
+          <tr><td>napoleon</td><td class="num">((63, 5)</td><td class="num">((133, -2)</td><td class="num">3.9s</td></tr>
+          <tr><td>religous painting</td><td class="num">((28, 3)</td><td class="num">((68, 7)</td><td class="num">3.8s</td></tr>
+          <tr><td>self portrait</td><td class="num">((79, 29)</td><td class="num">((176, 37)</td><td class="num">4.1s</td></tr>
+          <tr><td>siren</td><td class="num">((49, -6)</td><td class="num">((96, -25)</td><td class="num">4.2s</td></tr>
+          <tr><td>three generations</td><td class="num">((53, 14)</td><td class="num">((112, 11)</td><td class="num">3.9s</td></tr>
+          <tr><td>wharf</td><td class="num">((15, -7)</td><td class="num">((83, -16)</td><td class="num">4.1s</td></tr>
+          <tr><td>total, 17 images 58.4s</td><td></td><td></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h2>l2 vs ncc</h2>
+      <p>
+        on the jpgs the two metrics agree exactly. on the tifs they mostly
+        agree, but l2 gets church wrong and ncc gets it right. the red channel
+        of church is brighter overall than the blue, and l2 is sensitive to
+        that, so it finds a shift that matches overall brightness instead of
+        the actual content. ncc subtracts the mean first so it doesn't care.
+      </p>
+      <div class="figure-pair">
+        <figure>
+          <a href="/cs180/proj1/media/church-l2.jpg"><img src="/cs180/proj1/media/thumb/church-l2.jpg" alt="church aligned with l2, red channel misplaced"></a>
+          <figcaption>l2 · r (64, 267) · wrong</figcaption>
+        </figure>
+        <figure>
+          <a href="/cs180/proj1/media/full/church.jpg"><img src="/cs180/proj1/media/thumb/church.jpg" alt="church aligned with ncc"></a>
+          <figcaption>ncc · r (58, -4) · right</figcaption>
+        </figure>
+      </div>
+
+      <h2>where it fails</h2>
+      <p>
+        emir doesn't align with either metric. his robe is bright blue, so it
+        comes out very bright in the blue exposure and very dark in the red
+        one. the two channels really do look different, not just shifted, and
+        neither l2 nor ncc can match them since both compare raw pixel values.
+        the green channel is close enough to blue that it still lines up. the
+        red channel ends up far off.
+      </p>
+      <figure>
+        <img src="/cs180/proj1/media/emir-channels.jpg" alt="the blue, green, and red exposures of emir side by side, showing the robe brightness flipping">
+        <figcaption>emir's blue, green, and red exposures · the robe flips from bright to dark</figcaption>
+      </figure>
+      <figure>
+        <a href="/cs180/proj1/media/full/emir.jpg"><img src="/cs180/proj1/media/thumb/emir.jpg" alt="emir with the red channel misaligned"></a>
+        <figcaption>emir · g (49, 24) · r (141, -205) · red is wrong</figcaption>
+      </figure>
+      <p>
+        the fix would be to align on something other than brightness, like
+        edges or gradients, since the outline of the robe is in the same place
+        in every channel even if the fill isn't.
+      </p>
+    </article>
+
+    <div class="section-divider"></div>
+
+    <footer>
+      <p>© andrew zhou 2026</p>
+    </footer>
+  </main>
+</body>
+</html>

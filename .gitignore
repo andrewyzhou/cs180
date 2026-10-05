@@ -12,3 +12,8 @@ incoming/
 # proj1 course input plates (~760MB of tifs) and generated outputs
 proj1/images/
 proj1/out/
+
+# proj2 inputs, generated outputs, and reference solutions
+proj2/images/
+proj2/out/
+proj2/solutions/

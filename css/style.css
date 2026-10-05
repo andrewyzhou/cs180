@@ -88,6 +88,26 @@ h2 {
   margin: 3rem 0 0.5rem 0;
 }
 
+h3 {
+  color: var(--theme-text-primary);
+  font-weight: 600;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  margin: 2.25rem 0 0.5rem 0;
+}
+
+h4 {
+  color: var(--theme-text-primary);
+  font-weight: 600;
+  font-size: 1rem;
+  margin: 1.75rem 0 0.5rem 0;
+}
+
+/* tiny crops (proj2 boundary corners) scaled up without smoothing */
+img.pixelated {
+  image-rendering: pixelated;
+}
+
 p {
   line-height: 1.5;
   margin-bottom: 1rem;

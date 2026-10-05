@@ -17,3 +17,8 @@ proj1/out/
 proj2/images/
 proj2/out/
 proj2/solutions/
+
+# code goes to gradescope only, not public
+proj2/*.ipynb
+proj2/submission/
+proj2/*.zip

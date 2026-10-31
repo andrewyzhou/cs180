@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>project 4 · cs180 · andrew zhou</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/cs180/css/style.css">
+  <script src="/cs180/js/theme.js"></script>
+</head>
+<body>
+  <main class="site-container">
+    <div class="top-row">
+      <a href="/cs180" class="back-link link-highlight">← cs180</a>
+      <button class="theme-toggle link-highlight" onclick="toggleTheme()">light mode</button>
+    </div>
+
+    <article>
+      <h1>stitching photo mosaics</h1>
+      <p class="meta">project 4 · oct 30, 2026</p>
+
+      <hr>
+
+      <h2>part a · image warping and mosaicing</h2>
+
+      <h3>a.1 · shooting the pictures</h3>
+      <p>three sets on an iphone 14 pro, standing in one spot and turning the phone between shots. the closet is on the 0.5x lens, the other two on 1x.</p>
+      <figure><a href="/cs180/proj4/media/a_1_closet.jpg"><img src="/cs180/proj4/media/a_1_closet.jpg" alt="closet, 2 shots"></a><figcaption>closet · 2 shots · 0.5x</figcaption></figure>
+      <figure><a href="/cs180/proj4/media/a_1_balcony.jpg"><img src="/cs180/proj4/media/a_1_balcony.jpg" alt="balcony at night, 4 shots"></a><figcaption>balcony at night · 4 shots · 1x</figcaption></figure>
+      <figure><a href="/cs180/proj4/media/a_1_keyboard.jpg"><img src="/cs180/proj4/media/a_1_keyboard.jpg" alt="keyboard from above, 3 shots"></a><figcaption>keyboard from above · 3 shots · 1x</figcaption></figure>
+
+      <h3>a.2 · recovering homographies</h3>
+      <p>a homography p' = Hp has 8 unknowns once h33 is set to 1. each correspondence (x, y) → (x', y') gives two rows of Ah = b:</p>
+<pre><code>[ x  y  1  0  0  0  -x'x  -x'y ] h = x'
+[ 0  0  0  x  y  1  -y'x  -y'y ] h = y'</code></pre>
+      <p>with more than 4 points it's overdetermined, so i solve it with least squares.</p>
+<pre><code>def computeH(im1_pts, im2_pts):
+    A, b = [], []
+    for (x, y), (u, v) in zip(im1_pts, im2_pts):
+        A.append([x, y, 1, 0, 0, 0, -u * x, -u * y])
+        A.append([0, 0, 0, x, y, 1, -v * x, -v * y])
+        b += [u, v]
+    h = np.linalg.lstsq(np.array(A), np.array(b), rcond=None)[0]
+    return np.append(h, 1).reshape(3, 3)</code></pre>
+      <p>i used 12 points per pair. to pick them, i took sift matches, kept the ones that agreed with each other under a ransac loop over computeH, and then chose 12 that were spread out.</p>
+      <figure><a href="/cs180/proj4/media/a_2_points.jpg"><img src="/cs180/proj4/media/a_2_points.jpg" alt="12 correspondences between the second and third balcony shots"></a><figcaption>12 correspondences between the second and third balcony shots</figcaption></figure>
+      <p>for this pair A is 24 x 8. the recovered H, taking the left image into the right one:</p>
+<pre><code>[[ 1.9038   0.0926  -3121.9856]
+ [ 0.5744   1.6863  -1179.8724]
+ [ 0.0003  -0.0000      1.0000]]</code></pre>
+      <p>pushing the 12 points through H lands them 1.52 px from their matches on average, 4.04 px at worst.</p>
+
+      <h3>a.3 · warping the images</h3>
+      <p>inverse warping. for every output pixel, map back through H⁻¹ and sample the source, so there are no holes. the output size comes from pushing the four corners through H, and pixels that map outside the source get alpha 0. (0, 0) is the center of the top left pixel. nearest neighbor rounds to the closest source pixel, and bilinear takes a weighted average of the 4 pixels around the point.</p>
+<pre><code>def _bilinear(im, sx, sy):
+    h, w = im.shape[:2]
+    ok = (sx >= 0) & (sx <= w - 1) & (sy >= 0) & (sy <= h - 1)
+    x0 = np.clip(np.floor(sx).astype(int), 0, w - 2)
+    y0 = np.clip(np.floor(sy).astype(int), 0, h - 2)
+    fx, fy = (sx - x0)[..., None], (sy - y0)[..., None]
+    top = im[y0, x0] * (1 - fx) + im[y0, x0 + 1] * fx
+    bot = im[y0 + 1, x0] * (1 - fx) + im[y0 + 1, x0 + 1] * fx
+    vals = top * (1 - fy) + bot * fy
+    vals[~ok] = 0
+    return vals, ok</code></pre>
+
+      <h4>rectification</h4>
+      <p>mark the four corners of something rectangular and send them to a rectangle, sized from the average lengths of opposite sides. i only warp a box around the rectangle, since the rest of the plane gets stretched toward its vanishing line. the full window warp was 22814 x 24373.</p>
+      <div class="figure-pair">
+  <figure><a href="/cs180/proj4/media/a_3_window_input.jpg"><img src="/cs180/proj4/media/a_3_window_input.jpg" alt="window, corners of the glass"></a><figcaption>window · corners of the glass</figcaption></figure>
+  <figure><a href="/cs180/proj4/media/a_3_window_bilinear.jpg"><img src="/cs180/proj4/media/a_3_window_bilinear.jpg" alt="rectified, bilinear"></a><figcaption>rectified · bilinear (<a href="/cs180/proj4/media/a_3_window_nearest.jpg" class="link-highlight">nearest</a>)</figcaption></figure>
+</div>
+<div class="figure-pair">
+  <figure><a href="/cs180/proj4/media/a_3_gate_input.jpg"><img src="/cs180/proj4/media/a_3_gate_input.jpg" alt="gate, top panel"></a><figcaption>gate · top panel</figcaption></figure>
+  <figure><a href="/cs180/proj4/media/a_3_gate_bilinear.jpg"><img src="/cs180/proj4/media/a_3_gate_bilinear.jpg" alt="rectified, bilinear"></a><figcaption>rectified · bilinear (<a href="/cs180/proj4/media/a_3_gate_nearest.jpg" class="link-highlight">nearest</a>)</figcaption></figure>
+</div>
+      <p>the window side of the house now faces the camera. the gate was shot almost straight on, so it only gets a small fix.</p>
+
+      <h4>nearest vs bilinear</h4>
+      <p>in the rectifications the two look about the same, since the scale is close to 1 and the edges end up straight. warping the rotated keyboard shot into the middle one makes straight edges diagonal, and that's where they differ.</p>
+      <figure><a href="/cs180/proj4/media/a_3_rotated_zoom.jpg"><img src="/cs180/proj4/media/a_3_rotated_zoom.jpg" alt="P key after warping, nearest and bilinear, 4x zoom" class="pixelated"></a><figcaption>P key after warping · nearest, bilinear · 4x zoom</figcaption></figure>
+      <p>nearest gives stair steps along the key edges and bilinear stays smooth. bilinear was 3.6x slower on the full 18.6 MP warp (2.30 s vs 0.65 s), and 3.5x and 3.8x slower on the window and gate (0.14 s vs 0.04 s, 0.57 s vs 0.15 s). i used bilinear for everything else.</p>
+
+      <h3>a.4 · blending into a mosaic</h3>
+      <p>all the images get warped into one frame, each carrying a weight that is 1 at its center and falls to 0 at its edges (distance transform). then a 2 level blend. the low frequencies (gaussian, σ = 8) are a weighted average of every image, and the high frequencies come only from the image with the highest weight at that pixel. brightness changes get smoothed over the overlap, but fine detail never gets averaged into ghosts.</p>
+<pre><code>low[sl] += lo * w[..., None]
+wsum[sl] += w
+take = w > best[sl]
+high[sl][take] = (img - lo)[take]
+best[sl] = np.maximum(best[sl], w)
+...
+mosaic = low / wsum[..., None] + high</code></pre>
+
+      <h4>closet</h4>
+      <p>the two 0.5x shots are turned far apart, so putting either one in the other's frame blows the far side up to 31162 x 43104. instead i warped both onto the plane halfway between them, using the matrix square root of H, so G G = H.</p>
+      <figure><a href="/cs180/proj4/media/a_4_closet.jpg"><img src="/cs180/proj4/media/a_4_closet_thumb.jpg" alt="closet mosaic"></a><figcaption>closet · 10203 x 8208</figcaption></figure>
+
+      <h4>balcony</h4>
+      <p>four shots into the third one's frame, chaining H through the second shot for the first. the exposure is different in every shot, but the low band blend hides it.</p>
+      <figure><a href="/cs180/proj4/media/a_4_balcony.jpg"><img src="/cs180/proj4/media/a_4_balcony_thumb.jpg" alt="balcony mosaic"></a><figcaption>balcony · 14781 x 10970</figcaption></figure>
+
+      <h4>keyboard</h4>
+      <p>three shots into the middle one's frame. the keyboard and laptop are flat, so they line up exactly. my legs and the laptop screen aren't on that plane, so they don't line up at the edges.</p>
+      <figure><a href="/cs180/proj4/media/a_4_keyboard.jpg"><img src="/cs180/proj4/media/a_4_keyboard_thumb.jpg" alt="keyboard mosaic"></a><figcaption>keyboard · 5453 x 4886</figcaption></figure>
+    </article>
+
+    <div class="section-divider"></div>
+
+    <footer>
+      <p>© andrew zhou 2026</p>
+    </footer>
+  </main>
+</body>
+</html>

@@ -22,3 +22,10 @@ proj2/solutions/
 proj2/*.ipynb
 proj2/submission/
 proj2/*.zip
+
+# proj4 originals, notebook, and correspondence helpers (code goes to gradescope only)
+proj4/images/
+proj4/out/
+proj4/*.ipynb
+proj4/*.py
+proj4/*.json
